@@ -1,0 +1,10 @@
+node_modules
+.vinext
+.wrangler
+.git
+.env
+.gradle-user
+backend/build
+backend/.gradle
+ai-service/__pycache__
+README.md
