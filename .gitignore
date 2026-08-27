@@ -44,7 +44,6 @@ ai-service/**/*.pyc
 .vercel
 
 /dist/
-/build/
 *.tsbuildinfo
 /.wrangler/
 /outputs/
