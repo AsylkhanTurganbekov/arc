@@ -1,11 +1,11 @@
 FROM node:24-alpine AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm config set fetch-retries 5 \
-    && npm config set fetch-retry-mintimeout 20000 \
-    && npm config set fetch-retry-maxtimeout 120000 \
-    && npm config set fetch-timeout 600000 \
-    && npm ci --ignore-scripts --no-audit --no-fund
+ENV npm_config_fetch_retries=5 \
+    npm_config_fetch_retry_mintimeout=20000 \
+    npm_config_fetch_retry_maxtimeout=120000 \
+    npm_config_fetch_timeout=600000
+RUN npm ci --ignore-scripts --no-audit --no-fund
 
 FROM dependencies AS build
 COPY . .
