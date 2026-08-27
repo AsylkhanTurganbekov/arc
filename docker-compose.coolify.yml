@@ -1,0 +1,90 @@
+name: arc
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-arc}
+      POSTGRES_USER: ${POSTGRES_USER:-arc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arc_local_password}
+    volumes:
+      - arc-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-arc} -d ${POSTGRES_DB:-arc}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      SERVER_PORT: 8081
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-arc}
+      DATABASE_USERNAME: ${POSTGRES_USER:-arc}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-arc_local_password}
+      JIRA_BASE_URL: ${JIRA_BASE_URL:-https://tasks.belesai.kz}
+      JIRA_USERNAME: ${JIRA_USERNAME:-admin}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:?Set JIRA_API_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  ai:
+    build:
+      context: ./ai-service
+    environment:
+      PORT: 8082
+      ARC_BACKEND_URL: http://backend:8081
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-arc}:${POSTGRES_PASSWORD:-arc_local_password}@postgres:5432/${POSTGRES_DB:-arc}
+      NITEC_LLM_API_KEY: ${NITEC_LLM_API_KEY:-}
+      NITEC_LLM_BASE_URL: ${NITEC_LLM_BASE_URL:-https://llm.nitec.kz/v1}
+      NITEC_LLM_MODEL: ${NITEC_LLM_MODEL:-openai/gpt-oss-120b}
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8082"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3000
+    depends_on:
+      backend:
+        condition: service_healthy
+      ai:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18090:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  arc-postgres:
